@@ -22,7 +22,7 @@ DB_CONFIG_REG_ADMIN = {
 
 # Number of rows to insert
 row_counts = [500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000]
-# row_counts = [500, 1000, 5000]
+#row_counts = [500, 1000]
 S = 20
 runs = 5
 
@@ -174,6 +174,13 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},REFRESH,scan,{run},{end_time - start_time:.2f}\n")
 
+        # Read the row ID from the dynamic table
+        start_time = time.time()
+        cur.execute("SELECT METADATA$MT_ROW_ID FROM dynamic_table_scan")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},READ_ROW_ID_DT,scan,{run},{end_time - start_time:.2f}\n")
+
         # GROUP BY - 1 key, string
         # Insert
         start_time = time.time()
@@ -209,6 +216,13 @@ for N in row_counts:
         end_time = time.time()
         with open(results_file, "a") as file:
             file.write(f"{N},REFRESH,group_by,{run},{end_time - start_time:.2f}\n")
+
+        # Read the row ID from the dynamic table
+        start_time = time.time()
+        cur.execute("SELECT METADATA$MT_ROW_ID FROM dynamic_table_group_by")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},READ_ROW_ID_DT,group_by,{run},{end_time - start_time:.2f}\n")
 
         # GROUP BY - 5 keys, strings
         # Insert
@@ -246,6 +260,13 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},REFRESH,group_by_strings,{run},{end_time - start_time:.2f}\n")
 
+        # Read the row ID from the dynamic table
+        start_time = time.time()
+        cur.execute("SELECT METADATA$MT_ROW_ID FROM dynamic_table_group_by_strings")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},READ_ROW_ID_DT,group_by_strings,{run},{end_time - start_time:.2f}\n")
+
         # Inner join
         # Insert
         start_time = time.time()
@@ -282,6 +303,13 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},REFRESH,join,{run},{end_time - start_time:.2f}\n")
 
+        # Read the row ID from the dynamic table
+        start_time = time.time()
+        cur.execute("SELECT METADATA$MT_ROW_ID FROM dynamic_table_join")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},READ_ROW_ID_DT,join,{run},{end_time - start_time:.2f}\n")
+
         # Flatten
         start_time = time.time()
         cur.execute("CREATE OR REPLACE TABLE tmp_flatten AS SELECT f.path AS path, key_row_id FROM map_table, LATERAL FLATTEN(input => map_table.key_array) f")
@@ -316,6 +344,13 @@ for N in row_counts:
         end_time = time.time()
         with open(results_file, "a") as file:
             file.write(f"{N},REFRESH,flatten,{run},{end_time - start_time:.2f}\n")
+
+        # Read the row ID from the dynamic table
+        start_time = time.time()
+        cur.execute("SELECT METADATA$MT_ROW_ID FROM dynamic_table_flatten")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},READ_ROW_ID_DT,flatten,{run},{end_time - start_time:.2f}\n")
 
         print(f"Benchmark completed for N = {N}, Run = {run}...")
 
