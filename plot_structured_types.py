@@ -15,6 +15,7 @@ data['N_str'] = data['N'].apply(lambda x: f'{x:,}')
 # Calculate the average of N over the 3 runs
 data_avg = data.groupby(['N', 'Operation', 'Table'])['Time'].mean().reset_index()
 data_avg = pd.merge(data_avg, data[['N', 'N_str']].drop_duplicates(), on='N')
+print(data_avg)
 
 # Loop through each operation except the scan_value group
 for operation, group in data_avg.groupby('Operation'):
@@ -45,6 +46,7 @@ for operation, group in data_avg.groupby('Operation'):
 
 # Now handle the special case for SCAN_VALUE, SCAN_VALUE_1, and SCAN_VALUE_2
 scan_value_data = data_avg[data_avg['Operation'].isin(['SCAN_VALUE', 'SCAN_VALUE_1', 'SCAN_VALUE_2'])]
+print(scan_value_data)
 
 # Rename the tables for the legend
 scan_value_data['Table'] = scan_value_data['Operation'].replace({
@@ -59,7 +61,8 @@ plt.figure(figsize=(8, 6))
 # Plot the lines and markers using pyplot
 for table in scan_value_data['Table'].unique():
     table_data = scan_value_data[scan_value_data['Table'] == table]
-    plt.plot(table_data['N'], table_data['Time'], marker='o', label=table)
+    print(table_data)
+    plt.plot(table_data['N_str'], table_data['Time'], marker='o', label=table)
 
 # Format the plot
 plt.title(f"Scan, Comparison of Map, Array, Object, 500 to 10m Rows")
