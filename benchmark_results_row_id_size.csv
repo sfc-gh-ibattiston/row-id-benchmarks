@@ -419,3 +419,7 @@ N,Compression,Storage,Table,Query,Operation,Run,Size
 500000,DECOMPRESSED,FDN,dynamic_table,join,insert_2,1,46295566
 500000,COMPRESSED,FDN,dynamic_table,flatten,insert_2,1,33284116
 500000,DECOMPRESSED,FDN,dynamic_table,flatten,insert_2,1,80325000
+1000000,COMPRESSED,FDN,dynamic_table,scan,initial_refresh,1,21226428
+1000000,DECOMPRESSED,FDN,dynamic_table,scan,initial_refresh,1,53000000
+1000000,COMPRESSED,FDN,dynamic_table,group_by,initial_refresh,1,35823212
+1000000,DECOMPRESSED,FDN,dynamic_table,group_by,initial_refresh,1,50000000
