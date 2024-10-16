@@ -52,7 +52,7 @@ for table in tables:
         plt.plot(df_filtered['N_str'], df_filtered['Time'], marker='o', label=operation)
 
     # Set title and labels
-    plt.title(f'Performance for {table.capitalize()} Table', fontsize=14)
+    plt.title(f'Runtime of {table} Row ID Computation, 500 to 10m Rows', fontsize=14)
     plt.xlabel('Number of Tuples (N)', fontsize=12)
     plt.ylabel('Average Time (seconds)', fontsize=12)
 
@@ -61,6 +61,56 @@ for table in tables:
 
     plt.legend(title='Operation')
 
-    # Save the plot to a file
-    plt.savefig(f'plots/{table}_performance.png')
+    # Save the plot to a file with higher resolution
+    plt.savefig(f'plots/{table.lower()}_performance.png', dpi=300)
     plt.close()
+
+# Create a single plot for Row ID Computation
+plt.figure(figsize=(10, 8))
+
+# Filter data for Row ID Computation for all tables
+df_row_id = df_avg[df_avg['Operation'] == 'Row ID Computation']
+
+# Plot each table's Row ID Computation
+for table in df_row_id['Table'].unique():
+    df_filtered = df_row_id[df_row_id['Table'] == table]
+    plt.plot(df_filtered['N_str'], df_filtered['Time'], marker='o', label=table)
+
+# Set title and labels
+plt.title('Row ID Computation, 500 to 10m Rows', fontsize=14)
+plt.xlabel('Number of Tuples (N)', fontsize=12)
+plt.ylabel('Average Time (seconds)', fontsize=12)
+
+# Adjust y-axis ticks
+plt.yticks(range(0, int(df_row_id['Time'].max()) + 10, 10))
+
+plt.legend(title='Table')
+
+# Save the plot to a file with higher resolution
+plt.savefig('plots/row_id_computation_performance.png', dpi=300)
+plt.close()
+
+# Create a single plot for Row ID Computation and Storage
+plt.figure(figsize=(10, 8))
+
+# Filter data for Row ID Computation and Storage for all tables
+df_row_id_storage = df_avg[df_avg['Operation'] == 'Row ID Computation and Storage']
+
+# Plot each table's Row ID Computation and Storage
+for table in df_row_id_storage['Table'].unique():
+    df_filtered = df_row_id_storage[df_row_id_storage['Table'] == table]
+    plt.plot(df_filtered['N_str'], df_filtered['Time'], marker='o', label=table)
+
+# Set title and labels
+plt.title('Row ID Computation and Storage, 500 to 10m Rows', fontsize=14)
+plt.xlabel('Number of Tuples (N)', fontsize=12)
+plt.ylabel('Average Time (seconds)', fontsize=12)
+
+# Adjust y-axis ticks
+plt.yticks(range(0, int(df_row_id_storage['Time'].max()) + 10, 10))
+
+plt.legend(title='Table')
+
+# Save the plot to a file with higher resolution
+plt.savefig('plots/row_id_computation_and_storage_performance.png', dpi=300)
+plt.close()

@@ -33,13 +33,28 @@ def write_size(cur, results_file, query_first_part, query_second_part, tables, o
         row = cur.fetchone()
         total_size_compressed = row[0]
         total_size_decompressed = row[1]
+
+        # Split the table name based on the second occurrence of '_'
+        parts = table.split('_', 2)  # Split into at most 3 parts
+        if len(parts) > 2:
+            first_part = parts[0] + '_' + parts[1]  # Join the first two parts
+            second_part = parts[2]  # The rest is the second part
+        else:
+            first_part = table  # If there are fewer than two '_', keep the whole name
+            second_part = ''  # Set second part as empty
+
+        # Remove "_iceberg" from both parts if present
+        first_part = first_part.replace("_iceberg", "")
+        second_part = second_part.replace("_iceberg", "")
+
         with open(results_file, "a") as file:
             if "iceberg" in table:
-                file.write(f"{N},COMPRESSED,ICEBERG,{table},{operation},{run},{total_size_compressed}\n")
-                file.write(f"{N},DECOMPRESSED,ICEBERG,{table},{operation},{run},{total_size_decompressed}\n")
+                file.write(f"{N},COMPRESSED,ICEBERG,{first_part},{second_part},{operation},{run},{total_size_compressed}\n")
+                file.write(f"{N},DECOMPRESSED,ICEBERG,{first_part},{second_part},{operation},{run},{total_size_decompressed}\n")
             else:
-                file.write(f"{N},COMPRESSED,FDN,{table},{operation},{run},{total_size_compressed}\n")
-                file.write(f"{N},DECOMPRESSED,FDN,{table},{operation},{run},{total_size_decompressed}\n")
+                file.write(f"{N},COMPRESSED,FDN,{first_part},{second_part},{operation},{run},{total_size_compressed}\n")
+                file.write(f"{N},DECOMPRESSED,FDN,{first_part},{second_part},{operation},{run},{total_size_decompressed}\n")
+
 
 def write_size_sdt(cur, results_file, query_first_part, query_second_part, tables, operation, run, N):
     for table in tables:
@@ -47,13 +62,27 @@ def write_size_sdt(cur, results_file, query_first_part, query_second_part, table
         row = cur.fetchone()
         total_size_compressed = row[0]
         total_size_decompressed = row[1]
+
+        # Split the table name based on the second occurrence of '_'
+        parts = table.split('_', 2)  # Split into at most 3 parts
+        if len(parts) > 2:
+            first_part = parts[0] + '_' + parts[1]  # Join the first two parts
+            second_part = parts[2]  # The rest is the second part
+        else:
+            first_part = table  # If there are fewer than two '_', keep the whole name
+            second_part = ''  # Set second part as empty
+
+        # Remove "_iceberg" from both parts if present
+        first_part = first_part.replace("_iceberg", "")
+        second_part = second_part.replace("_iceberg", "")
+
         with open(results_file, "a") as file:
             if "iceberg" in table:
-                file.write(f"{N},COMPRESSED,ICEBERG,{table},{operation},{run},{total_size_compressed}\n")
-                file.write(f"{N},DECOMPRESSED,ICEBERG,{table},{operation},{run},{total_size_decompressed}\n")
+                file.write(f"{N},COMPRESSED,ICEBERG,{first_part},{second_part},{operation},{run},{total_size_compressed}\n")
+                file.write(f"{N},DECOMPRESSED,ICEBERG,{first_part},{second_part},{operation},{run},{total_size_decompressed}\n")
             else:
-                file.write(f"{N},COMPRESSED,FDN,{table},{operation},{run},{total_size_compressed}\n")
-                file.write(f"{N},DECOMPRESSED,FDN,{table},{operation},{run},{total_size_decompressed}\n")
+                file.write(f"{N},COMPRESSED,FDN,{first_part},{second_part},{operation},{run},{total_size_compressed}\n")
+                file.write(f"{N},DECOMPRESSED,FDN,{first_part},{second_part},{operation},{run},{total_size_decompressed}\n")
 
 def refresh_tables(cur, dynamic_tables):
     for table in dynamic_tables:
@@ -69,14 +98,14 @@ def update_tables(cur, S):
         WHERE UNIFORM(1, 100, RANDOM()) <= 5
     """)
 
-    cur.execute("UPDATE temp_data_iceberg SET key_int = key_int + 1 WHERE key_int % 20 = 0")
-    cur.execute("UPDATE temp_data_strings_iceberg SET key_string1 = key_string1 || 'a' WHERE key_int % 20 = 0")
-    cur.execute("UPDATE temp_data_join_iceberg SET key_int = key_int + 1 WHERE key_int % 20 = 0")
-    cur.execute(f"""
-        UPDATE map_table_iceberg 
-        SET key_array = OBJECT_CONSTRUCT(RANDSTR({S}, RANDOM()), UNIFORM(1, 1000000, RANDOM()))::MAP(VARCHAR, NUMERIC(9, 0)) 
-        WHERE UNIFORM(1, 100, RANDOM()) <= 5
-    """)
+    #cur.execute("UPDATE temp_data_iceberg SET key_int = key_int + 1 WHERE key_int % 20 = 0")
+    #cur.execute("UPDATE temp_data_strings_iceberg SET key_string1 = key_string1 || 'a' WHERE key_int % 20 = 0")
+    #cur.execute("UPDATE temp_data_join_iceberg SET key_int = key_int + 1 WHERE key_int % 20 = 0")
+    #cur.execute(f"""
+    #    UPDATE map_table_iceberg
+    #    SET key_array = OBJECT_CONSTRUCT(RANDSTR({S}, RANDOM()), UNIFORM(1, 1000000, RANDOM()))::MAP(VARCHAR, NUMERIC(9, 0))
+    #    WHERE UNIFORM(1, 100, RANDOM()) <= 5
+    #""")
 
 
 def insert_tables(cur, N):
@@ -89,14 +118,14 @@ def insert_tables(cur, N):
     cur.execute("INSERT INTO temp_data_join SELECT * FROM temp_data_5")
     cur.execute("INSERT INTO map_table SELECT OBJECT_CONSTRUCT(RANDSTR(20, RANDOM()), UNIFORM(1, 1000000, RANDOM()))::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data")
 
-    cur.execute("INSERT INTO temp_data SELECT * FROM temp_data_5_iceberg")
-    cur.execute(f"""
-                INSERT INTO temp_data_strings_iceberg 
-                SELECT UNIFORM(1, 1000000, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()) 
-                FROM TABLE(GENERATOR(ROWCOUNT => 0.05 * {N}))
-                """)
-    cur.execute("INSERT INTO temp_data_join_iceberg SELECT * FROM temp_data_5_iceberg")
-    cur.execute("INSERT INTO map_table_iceberg SELECT OBJECT_CONSTRUCT(RANDSTR(20, RANDOM()), UNIFORM(1, 1000000, RANDOM()))::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data_iceberg")
+    # cur.execute("INSERT INTO temp_data_iceberg SELECT * FROM temp_data_5_iceberg")
+    # cur.execute(f"""
+    #             INSERT INTO temp_data_strings_iceberg
+    #             SELECT UNIFORM(1, 1000000, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM()), RANDSTR(20, RANDOM())
+    #             FROM TABLE(GENERATOR(ROWCOUNT => 0.05 * {N}))
+    #             """)
+    # cur.execute("INSERT INTO temp_data_join_iceberg SELECT * FROM temp_data_5_iceberg")
+    # cur.execute("INSERT INTO map_table_iceberg SELECT OBJECT_CONSTRUCT(RANDSTR(20, RANDOM()), UNIFORM(1, 1000000, RANDOM()))::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data_iceberg")
 
 
 def run_benchmark():
@@ -130,19 +159,26 @@ def run_benchmark():
     + SUM(
         COALESCE(CAST(comp_block.value:numericData.sizeCompressed AS NUMBER),
     COALESCE(CAST(comp_block.value:numericData.sizeDecompressed AS NUMBER), 0))
+    )
+    + SUM(
+        COALESCE(CAST(comp_block.value:indexData.sizeCompressed AS NUMBER),
+    COALESCE(CAST(comp_block.value:indexData.sizeDecompressed AS NUMBER), 0))  
     ) AS total_size_compressed,
     SUM(
         COALESCE(CAST(comp_block.value:textData.sizeDecompressed AS NUMBER), 0)
     )
     + SUM(
         COALESCE(CAST(comp_block.value:numericData.sizeDecompressed AS NUMBER), 0)
+    )  
+    + SUM(
+        COALESCE(CAST(comp_block.value:indexData.sizeDecompressed AS NUMBER), 0)  
     ) AS total_size_decompressed
     FROM json_data_row_id, LATERAL FLATTEN(input => value:compBlocks) AS comp_block;"""
 
     row_counts = [500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000]
     #row_counts = [500]
     S = 20
-    runs = 3
+    runs = 1
 
     dynamic_tables = [
         "dynamic_table_scan",
@@ -177,7 +213,7 @@ def run_benchmark():
 
     # Write the header to the file
     with open(results_file, "w") as file:
-        file.write("N,Compression,Storage,Table,Operation,Run,Size\n")
+        file.write("N,Compression,Storage,Table,Query,Operation,Run,Size\n")
 
     # Connect to Snowflake
     conn = snowflake.connector.connect(**DB_CONFIG_REG_ADMIN)
@@ -254,6 +290,12 @@ def run_benchmark():
             CREATE OR REPLACE TABLE map_table (
                 key_array MAP(VARCHAR, NUMERIC(9, 0))
             )
+            """)
+
+            cur.execute("""
+            INSERT INTO map_table
+            SELECT OBJECT_CONSTRUCT(key_string, key_int)::MAP(VARCHAR, NUMERIC(9, 0))
+            FROM temp_data
             """)
 
             # cur.execute(f"""
@@ -357,7 +399,7 @@ def run_benchmark():
             INITIALIZE = on_schedule
             TARGET_LAG = '1 hour'
             WAREHOUSE = bench
-            AS SELECT f.value 
+            AS SELECT f.key 
             FROM map_table, LATERAL FLATTEN(input => map_table.key_array) f;
             """)
 
@@ -420,7 +462,7 @@ def run_benchmark():
             # EXTERNAL_VOLUME = 'ibattiston_iceberg_volume'
             # CATALOG = 'SNOWFLAKE'
             # BASE_LOCATION = 's3://datalake-storage-team/iceberg_writes/'
-            # AS SELECT f.value
+            # AS SELECT f.key
             # FROM map_table, LATERAL FLATTEN(input => map_table.key_array) f;
             # """)
 
@@ -476,7 +518,7 @@ def run_benchmark():
             """)
             cur.execute("""
             CREATE OR REPLACE TABLE map_table_flatten (
-                key_array MAP(VARCHAR, NUMERIC(9, 0))
+                key_array MAP(VARCHAR, VARCHAR)
             )
             """)
 
@@ -520,7 +562,7 @@ def run_benchmark():
             #
             # cur.execute("""
             # CREATE OR REPLACE ICEBERG TABLE map_table_flatten_iceberg (
-            #     key_array MAP(VARCHAR, NUMERIC(9, 0))
+            #     key_array MAP(VARCHAR, VARCHAR)
             # )
             # EXTERNAL_VOLUME = 'ibattiston_iceberg_volume'
             # CATALOG = 'SNOWFLAKE'
@@ -542,6 +584,9 @@ def run_benchmark():
             cur.execute("INSERT INTO array_table_group_by_strings SELECT ARRAY_CONSTRUCT(SPLIT_PART(METADATA$MT_ROW_ID, ':', 0), METADATA$PARTITION_ROW_NUMBER) FROM dynamic_table_group_by_strings")
             cur.execute("INSERT INTO map_table_group_by_strings SELECT OBJECT_CONSTRUCT(SPLIT_PART(METADATA$MT_ROW_ID, ':', 0), METADATA$PARTITION_ROW_NUMBER)::MAP(VARCHAR, NUMERIC(9, 0)) FROM dynamic_table_group_by_strings")
 
+            cur.execute("INSERT INTO array_table_flatten SELECT ARRAY_CONSTRUCT(SPLIT_PART(METADATA$MT_ROW_ID, ':', 0), key) FROM dynamic_table_flatten")
+            cur.execute("INSERT INTO map_table_flatten SELECT OBJECT_CONSTRUCT(SPLIT_PART(METADATA$MT_ROW_ID, ':', 0), key)::MAP(VARCHAR, VARCHAR) FROM dynamic_table_flatten")
+
             # cur.execute("INSERT INTO map_table_scan_iceberg SELECT OBJECT_CONSTRUCT(METADATA$PARTITION_NAME, METADATA$PARTITION_ROW_NUMBER)::MAP(VARCHAR, NUMERIC(9, 0)) FROM dynamic_table_scan_iceberg")
             # cur.execute("INSERT INTO map_table_join_iceberg SELECT OBJECT_CONSTRUCT(SPLIT_PART(METADATA$MT_ROW_ID, ':', 0), METADATA$PARTITION_ROW_NUMBER)::MAP(VARCHAR, NUMERIC(9, 0)) FROM dynamic_table_join_iceberg")
             # cur.execute("INSERT INTO map_table_group_by_iceberg SELECT OBJECT_CONSTRUCT(SPLIT_PART(METADATA$MT_ROW_ID, ':', 0), METADATA$PARTITION_ROW_NUMBER)::MAP(VARCHAR, NUMERIC(9, 0)) FROM dynamic_table_group_by_iceberg")
@@ -553,46 +598,47 @@ def run_benchmark():
             write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "initial_refresh", run, N)
             write_size_sdt(cur, results_file, query_first_part_sdt, query_second_part_sdt, tables, "initial_refresh", run, N)
 
-            # Update tables
-            update_tables(cur, N)
+            if N <= 1000000:
+                # Update tables
+                update_tables(cur, N)
 
-            # Refresh tables after update
-            refresh_tables(cur, dynamic_tables)
+                # Refresh tables after update
+                refresh_tables(cur, dynamic_tables)
 
-            # Measure sizes after update
-            write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "update", run, N)
+                # Measure sizes after update
+                write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "update", run, N)
 
-            # Insert 5% more rows
-            insert_tables(cur, N)
+                # Insert 5% more rows
+                insert_tables(cur, N)
 
-            # Refresh tables after insert
-            refresh_tables(cur, dynamic_tables)
+                # Refresh tables after insert
+                refresh_tables(cur, dynamic_tables)
 
-            # Measure sizes after insert
-            write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "insert", run, N)
+                # Measure sizes after insert
+                write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "insert", run, N)
 
-            # Insert 5% more rows again
-            cur.execute(f"""
-            CREATE OR REPLACE TABLE temp_data_5 AS
-            SELECT UNIFORM(1, 1000000, RANDOM()) AS key_int, RANDSTR({S}, RANDOM()) AS key_string
-            FROM TABLE(GENERATOR(ROWCOUNT => {N * 0.05}))
-            """)
-            cur.execute(f"""
-            CREATE OR REPLACE ICEBERG TABLE temp_data_5_iceberg
-            EXTERNAL_VOLUME = 'ibattiston_iceberg_volume'
-            CATALOG = 'SNOWFLAKE'
-            BASE_LOCATION = 's3://datalake-storage-team/iceberg_writes/'
-            AS SELECT UNIFORM(1, 1000000, RANDOM()) AS key_int, RANDSTR({S}, RANDOM()) AS key_string
-            FROM TABLE(GENERATOR(ROWCOUNT => {N * 0.05}))
-            """)
+                # Insert 5% more rows again
+                cur.execute(f"""
+                CREATE OR REPLACE TABLE temp_data_5 AS
+                SELECT UNIFORM(1, 1000000, RANDOM()) AS key_int, RANDSTR({S}, RANDOM()) AS key_string
+                FROM TABLE(GENERATOR(ROWCOUNT => {N * 0.05}))
+                """)
+                # cur.execute(f"""
+                # CREATE OR REPLACE ICEBERG TABLE temp_data_5_iceberg
+                # EXTERNAL_VOLUME = 'ibattiston_iceberg_volume'
+                # CATALOG = 'SNOWFLAKE'
+                # BASE_LOCATION = 's3://datalake-storage-team/iceberg_writes/'
+                # AS SELECT UNIFORM(1, 1000000, RANDOM()) AS key_int, RANDSTR({S}, RANDOM()) AS key_string
+                # FROM TABLE(GENERATOR(ROWCOUNT => {N * 0.05}))
+                # """)
 
-            insert_tables(cur, S)
+                insert_tables(cur, S)
 
-            # Refresh tables after second insert
-            refresh_tables(cur, dynamic_tables)
+                # Refresh tables after second insert
+                refresh_tables(cur, dynamic_tables)
 
-            # Measure sizes after second insert
-            write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "insert_2", run, N)
+                # Measure sizes after second insert
+                write_size(cur, results_file, query_first_part, query_second_part, dynamic_tables, "insert_2", run, N)
 
     cur.close()
     conn.close()

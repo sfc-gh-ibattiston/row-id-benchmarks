@@ -43,8 +43,7 @@ for N in row_counts:
         CREATE OR REPLACE TABLE temp_data AS
         SELECT
             UNIFORM(1, 1000000, RANDOM()) AS key_int,
-            RANDSTR({S}, RANDOM()) AS key_string,
-            UNIFORM(1, 100, RANDOM()) AS key_tiny
+            RANDSTR({S}, RANDOM()) AS key_string
         FROM
             TABLE(GENERATOR(ROWCOUNT => {N}))
         """)
@@ -53,8 +52,7 @@ for N in row_counts:
         CREATE OR REPLACE TABLE temp_data_join AS
         SELECT
             UNIFORM(1, 1000000, RANDOM()) AS key_int,
-            RANDSTR({S}, RANDOM()) AS key_string,
-            UNIFORM(1, 100, RANDOM()) AS key_tiny
+            RANDSTR({S}, RANDOM()) AS key_string
         FROM
             TABLE(GENERATOR(ROWCOUNT => {N}))
         """)
@@ -96,7 +94,13 @@ for N in row_counts:
 
         cur.execute("""
         CREATE OR REPLACE TABLE object_table (
-            key_object VARIANT
+            key_array VARIANT
+        )
+        """)
+
+        cur.execute("""
+        CREATE OR REPLACE TABLE object_table_join (
+            key_array VARIANT
         )
         """)
 
@@ -119,6 +123,13 @@ for N in row_counts:
         )
         """)
 
+        cur.execute("""
+        CREATE OR REPLACE TABLE string_object_table (
+            key_string STRING,
+            key_array VARIANT
+        )
+        """)
+
         print(f"Benchmark initialized for N = {N}, Run = {run}...")
 
         # Measure and insert data into string_int_table (STRING, INTEGER)
@@ -129,8 +140,6 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},INSERT,string_int_table,{run},{insert_time:.2f}\n")
 
-        # todo - should we also measure scan time?
-
         # Measure and insert data into array_table (ARRAY of VARIANT with STRING and INT)
         start_time = time.time()
         cur.execute("INSERT INTO array_table SELECT ARRAY_CONSTRUCT(key_string, key_int) FROM temp_data")
@@ -138,6 +147,21 @@ for N in row_counts:
         insert_time = end_time - start_time
         with open(results_file, "a") as file:
             file.write(f"{N},INSERT,array_table,{run},{insert_time:.2f}\n")
+
+        start_time = time.time()
+        cur.execute("INSERT INTO object_table SELECT OBJECT_CONSTRUCT(key_string, key_int) FROM temp_data")
+        end_time = time.time()
+        insert_time = end_time - start_time
+        with open(results_file, "a") as file:
+            file.write(f"{N},INSERT,object_table,{run},{insert_time:.2f}\n")
+
+        # Measure and insert data into map_table (MAP with STRING and INT)
+        start_time = time.time()
+        cur.execute("INSERT INTO map_table SELECT OBJECT_CONSTRUCT(key_string, key_int)::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data")
+        end_time = time.time()
+        insert_time = end_time - start_time
+        with open(results_file, "a") as file:
+            file.write(f"{N},INSERT,map_table,{run},{insert_time:.2f}\n")
 
         # Measure the construction in array_table (ARRAY of VARIANT with STRING and INT)
         start_time = time.time()
@@ -147,32 +171,13 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},CONSTRUCT,array_table,{run},{insert_time:.2f}\n")
 
-        cur.execute("INSERT INTO array_table_join SELECT ARRAY_CONSTRUCT(key_string, key_int) FROM temp_data_join")
-
-        # Only run the object_table insert when N <= 10000
-        if N <= 100000:
-            start_time = time.time()
-            cur.execute("INSERT INTO object_table SELECT OBJECT_CONSTRUCT(key_string, key_int) FROM temp_data")
-            end_time = time.time()
-            insert_time = end_time - start_time
-            with open(results_file, "a") as file:
-                file.write(f"{N},INSERT,object_table,{run},{insert_time:.2f}\n")
-
-            # Measure the construction in object_table (OBJECT of VARIANT with STRING and INT)
-            start_time = time.time()
-            cur.execute("SELECT OBJECT_CONSTRUCT(key_string, key_int) FROM temp_data")
-            end_time = time.time()
-            insert_time = end_time - start_time
-            with open(results_file, "a") as file:
-                file.write(f"{N},CONSTRUCT,object_table,{run},{insert_time:.2f}\n")
-
-        # Measure and insert data into map_table (MAP with STRING and INT)
+        # Measure the construction in object_table (OBJECT of VARIANT with STRING and INT)
         start_time = time.time()
-        cur.execute("INSERT INTO map_table SELECT OBJECT_CONSTRUCT(key_string, key_int)::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data")
+        cur.execute("SELECT OBJECT_CONSTRUCT(key_string, key_int) FROM temp_data")
         end_time = time.time()
         insert_time = end_time - start_time
         with open(results_file, "a") as file:
-            file.write(f"{N},INSERT,map_table,{run},{insert_time:.2f}\n")
+            file.write(f"{N},CONSTRUCT,object_table,{run},{insert_time:.2f}\n")
 
         # Measure the construction in map_table (MAP with STRING and INT)
         start_time = time.time()
@@ -183,11 +188,14 @@ for N in row_counts:
             file.write(f"{N},CONSTRUCT,map_table,{run},{insert_time:.2f}\n")
 
         cur.execute("INSERT INTO map_table_join SELECT OBJECT_CONSTRUCT(key_string, key_int)::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data_join")
+        cur.execute("INSERT INTO array_table_join SELECT ARRAY_CONSTRUCT(key_string, key_int) FROM temp_data_join")
+        cur.execute("INSERT INTO object_table_join SELECT OBJECT_CONSTRUCT(key_string, key_int) FROM temp_data_join")
 
         # Also insert another string (for search purposes)
         cur.execute("INSERT INTO string_map_table SELECT key_string, OBJECT_CONSTRUCT(key_string, key_int)::MAP(VARCHAR, NUMERIC(9, 0)) FROM temp_data")
+        cur.execute("INSERT INTO string_object_table SELECT key_string, OBJECT_CONSTRUCT(key_string, key_int) FROM temp_data")
 
-        # Scan of the whole column
+    # Scan of the whole column
         start_time = time.time()
         cur.execute("SELECT * FROM array_table")
         end_time = time.time()
@@ -202,12 +210,11 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},SCAN,map_table,{run},{scan_time:.2f}\n")
 
-        if N <= 100000:
-            cur.execute("SELECT * FROM object_table")
-            end_time = time.time()
-            scan_time = end_time - start_time
-            with open(results_file, "a") as file:
-                file.write(f"{N},SCAN,map_table,{run},{scan_time:.2f}\n")
+        cur.execute("SELECT * FROM object_table")
+        end_time = time.time()
+        scan_time = end_time - start_time
+        with open(results_file, "a") as file:
+            file.write(f"{N},SCAN,object_table,{run},{scan_time:.2f}\n")
 
         # Scan of the value
         start_time = time.time()
@@ -231,6 +238,13 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},SCAN_VALUE_2,map_table,{run},{scan_time:.2f}\n")
 
+        start_time = time.time()
+        cur.execute("SELECT key_array[key_string] FROM string_object_table")
+        end_time = time.time()
+        scan_time = end_time - start_time
+        with open(results_file, "a") as file:
+            file.write(f"{N},SCAN_VALUE,object_table,{run},{scan_time:.2f}\n")
+
         # Scan of the key
         start_time = time.time()
         cur.execute("SELECT key_array[0] FROM array_table")
@@ -245,6 +259,8 @@ for N in row_counts:
         scan_time = end_time - start_time
         with open(results_file, "a") as file:
             file.write(f"{N},SCAN_KEY,map_table,{run},{scan_time:.2f}\n")
+
+        # todo object
 
         # Scan of the key and the value
         start_time = time.time()
@@ -261,6 +277,8 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},SCAN_KEY_VALUE,map_table,{run},{scan_time:.2f}\n")
 
+        # todo object
+
         # Join
         start_time = time.time()
         cur.execute("SELECT * FROM array_table FULL OUTER JOIN array_table_join ON array_table.key_array = array_table_join.key_array")
@@ -274,12 +292,18 @@ for N in row_counts:
         with open(results_file, "a") as file:
             file.write(f"{N},JOIN,map_table,{run},{end_time - start_time:.2f}\n")
 
+        start_time = time.time()
+        cur.execute("SELECT * FROM object_table FULL OUTER JOIN object_table_join ON object_table.key_array = object_table_join.key_array")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},JOIN,object_table,{run},{end_time - start_time:.2f}\n")
+
         # Now outer join the "row ID" as baseline
         start_time = time.time()
         cur.execute("SELECT * FROM temp_data_row_id FULL OUTER JOIN temp_data_row_id_join ON temp_data_row_id.key_string = temp_data_row_id_join.key_string_join")
         end_time = time.time()
         with open(results_file, "a") as file:
-            file.write(f"{N},JOIN,row_id,{run},{end_time - start_time:.2f}\n")
+            file.write(f"{N},JOIN,row_id_baseline,{run},{end_time - start_time:.2f}\n")
 
         # Append a new element
         start_time = time.time()
@@ -292,7 +316,13 @@ for N in row_counts:
         cur.execute("UPDATE map_table SET key_array = MAP_INSERT(key_array, 'some_string', 123456789)")
         end_time = time.time()
         with open(results_file, "a") as file:
-            file.write(f"{N},APPEND,array_table,{run},{end_time - start_time:.2f}\n")
+            file.write(f"{N},APPEND,map_table,{run},{end_time - start_time:.2f}\n")
+
+        start_time = time.time()
+        cur.execute("UPDATE object_table SET key_array = OBJECT_INSERT(key_array, 'some_string', 123456789)")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},APPEND,object_table,{run},{end_time - start_time:.2f}\n")
 
         # Join with the new element
         start_time = time.time()
@@ -306,6 +336,12 @@ for N in row_counts:
         end_time = time.time()
         with open(results_file, "a") as file:
             file.write(f"{N},JOIN_APPEND,map_table,{run},{end_time - start_time:.2f}\n")
+
+        start_time = time.time()
+        cur.execute("SELECT * FROM object_table o1 FULL OUTER JOIN object_table o2 ON o1.key_array = o2.key_array")
+        end_time = time.time()
+        with open(results_file, "a") as file:
+            file.write(f"{N},JOIN_APPEND,object_table,{run},{end_time - start_time:.2f}\n")
 
 # Close cursor and connection
 cur.close()

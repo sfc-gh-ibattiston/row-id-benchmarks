@@ -1,98 +1,100 @@
-import pandas as pd
-import matplotlib.pyplot as plt
 import os
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
 
-# Load the data
-data = pd.read_csv('benchmark_results_row_id_size.csv')
+# Function to ensure the plots directory exists
+def create_plots_directory(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
-# Filter out "update" operation
-filtered_data = data[data['Operation'].isin(['initial_refresh', 'insert', 'insert_2'])]
+# Load the CSV data into a DataFrame
+def load_data(file_path):
+    return pd.read_csv(file_path)
 
-# Average the runs
-averaged_data = filtered_data.groupby(['Compression', 'Table', 'Operation', 'N']).agg({'Size': 'mean'}).reset_index()
+# Filter the data and calculate averages
+def process_data(df):
+    # Filter out 'flatten' queries and keep only 'initial_refresh' operations
+    filtered_df = df[(df['Operation'] == 'initial_refresh')]
 
-# Create a directory for plots
-plots_dir = 'plots'
-os.makedirs(plots_dir, exist_ok=True)
+    # Convert Size to numeric, forcing errors to NaN
+    filtered_df['Size'] = pd.to_numeric(filtered_df['Size'], errors='coerce')
 
-# Define custom labels for the legend and table names
-def format_legend_label(operation):
-    labels = {
-        'initial_refresh': 'Initial Refresh',
-        'insert': 'Insert (1)',
-        'insert_2': 'Insert (2)'
-    }
-    return labels.get(operation, operation.capitalize().replace('_', ' '))
+    # Drop rows with NaN values in Size after conversion
+    filtered_df = filtered_df.dropna(subset=['Size'])
 
-def format_table_name(table_name):
-    parts = table_name.split('_')
-    if parts[0] == 'dynamic' and parts[1] == 'table':
-        return f'DT - {" ".join(part.capitalize() for part in parts[2:])}'
-    elif len(parts) > 1:
-        return f'{parts[0].capitalize()} - {" ".join(part.capitalize() for part in parts[1:])}'
-    return table_name.capitalize()
+    # Calculate the average size grouped by Table, Compression, and Query
+    average_sizes = filtered_df.groupby(['Table', 'Compression', 'Query', 'N']).agg({'Size': 'mean'}).reset_index()
 
+    # Convert Size to kilobytes
+    average_sizes['Size'] = average_sizes['Size'] / 1000  # Convert bytes to kilobytes
 
-# Plot for each table
-tables = averaged_data['Table'].unique()
-operations = averaged_data['Operation'].unique()
+    return average_sizes
 
-for table in tables:
-    pretty_table_name = format_table_name(table)
+# Plot the data
+def plot_data(df, output_directory):
+    # Create plots for each query
+    for query in df['Query'].unique():
+        query_data = df[df['Query'] == query]
 
-    plt.figure(figsize=(12, 8))
+        # Separate compressed and decompressed data
+        compressed_data = query_data[query_data['Compression'] == 'COMPRESSED']
+        decompressed_data = query_data[query_data['Compression'] == 'DECOMPRESSED']
 
-    for operation in operations:
-        for compression in ['COMPRESSED', 'DECOMPRESSED']:
-            subset = averaged_data[(averaged_data['Table'] == table) &
-                                   (averaged_data['Operation'] == operation) &
-                                   (averaged_data['Compression'] == compression)]
-            plt.plot(subset['N'], subset['Size'], marker='o', label=f'{format_legend_label(operation)} {compression.capitalize()}')
+        # Create a subplot with 2 columns (one for compressed, one for decompressed)
+        fig, axes = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
 
-    plt.title(f'{pretty_table_name} - Compressed vs Decompressed')
-    plt.xlabel('Row Size (N)')
-    plt.ylabel('Size')
-    plt.legend()
-    plt.grid(True)
+        # Plot compressed data
+        ax_compressed = axes[0]
+        for table, group_data in compressed_data.groupby('Table'):
+            x_values = group_data['N'].astype(str)
+            y_values = group_data['Size']
+            label = f"{table}_compressed"
+            ax_compressed.plot(x_values, y_values, marker='o', label=label)
 
-    # Format y-axis with thousands separator
-    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+        ax_compressed.set_xlabel('Rows (as string)')
+        ax_compressed.set_ylabel('Average Size (KB)')
+        ax_compressed.set_title(f'Compressed: {query}')
+        ax_compressed.legend(title='Table', loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
 
-    # Save the plot
-    plot_filename = f'{plots_dir}/{table}_compressed_vs_decompressed.png'
-    plt.savefig(plot_filename)
-    plt.close()  # Close the plot to free up memory
+        # Plot decompressed data
+        ax_decompressed = axes[1]
+        for table, group_data in decompressed_data.groupby('Table'):
+            x_values = group_data['N'].astype(str)
+            y_values = group_data['Size']
+            label = f"{table}_decompressed"
+            ax_decompressed.plot(x_values, y_values, marker='o', label=label)
 
-# Bar plot for the largest N, one figure with 5 subplots
-largest_n = averaged_data['N'].max()
-largest_n_data = averaged_data[(averaged_data['N'] == largest_n) & (averaged_data['Operation'] == 'initial_refresh')]
+        ax_decompressed.set_xlabel('Rows (as string)')
+        ax_decompressed.set_ylabel('Average Size (KB)')  # Ensure Y-axis label is also on the second plot
+        ax_decompressed.set_title(f'Decompressed: {query}')
+        ax_decompressed.legend(title='Table', loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
 
-tables = largest_n_data['Table'].unique()
+        # Ensure both plots have Y-axis labels
+        ax_decompressed.tick_params(axis='y', labelright=True)  # Enable Y-axis ticks and labels on the right plot
 
-# Create a figure with 5 subplots (1 row, 5 columns)
-fig, axes = plt.subplots(1, 5, figsize=(14, 6), sharey=True)
-fig.suptitle(f'{largest_n} Rows - Initial Refresh: Compressed vs Decompressed Row ID', fontsize=20)
+        # Adjust layout to reduce white space and avoid overlap
+        plt.tight_layout(rect=[0, 0, 1, 1])
+        plt.subplots_adjust(bottom=0.2)  # Adjust the bottom to make room for the legend
 
-for i, table in enumerate(tables):
-    pretty_table_name = format_table_name(table)
-    subset = largest_n_data[largest_n_data['Table'] == table]
+        # Save the plot
+        plt.savefig(os.path.join(output_directory, f'{query}_compressed_vs_decompressed.png'))
+        plt.close()
 
-    # Create bar plot for each table in a separate subplot
-    axes[i].bar(subset['Compression'], subset['Size'], color=['blue', 'orange'], width=0.7)
-    axes[i].set_title(f'{pretty_table_name}', fontsize=14)
-    # axes[i].set_xlabel('Compression')
+def main():
+    # Path to the CSV file
+    csv_file_path = 'benchmark_results_row_id_size.csv'  # Replace with your CSV file path
+    output_directory = 'plots'
 
-    # Format y-axis with thousands separator
-    axes[i].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
-    axes[i].tick_params(axis='both', which='major', labelsize=10)
+    # Create the output directory if it doesn't exist
+    create_plots_directory(output_directory)
 
-# Set common y-axis label
-fig.text(0.01, 0.5, 'Size (bytes)', va='center', rotation='vertical', fontsize=14)
+    # Load and process the data
+    df = load_data(csv_file_path)
+    df = process_data(df)
 
-# Adjust layout
-plt.tight_layout(rect=[0.02, 0, 1, 1])
+    # Plot the data
+    plot_data(df, output_directory)
 
-# Save the combined figure
-combined_plot_filename = f'{plots_dir}/largest_N_initial_refresh_combined.png'
-plt.savefig(combined_plot_filename)
-plt.close()
+if __name__ == "__main__":
+    main()
